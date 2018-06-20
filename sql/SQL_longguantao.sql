@@ -1,0 +1,56 @@
+--ORACLE  
+--AUTHOR:LONGGUANTAO
+--1、（1）统计20171001至20171007期间累计访问pv大于100的男性用户数。
+SELECT COUNT(DISTINCT C.MSISDN)
+  FROM (SELECT A.MSISDN, SUM(A.PV) PV
+          FROM PAGEVISIT A,
+               (SELECT DISTINCT MSISDN FROM USER_INFO WHERE SEX = '男') B
+         WHERE A.RECORD_DAY BETWEEN '20171001' AND '20171007'
+           AND A.MSISDN = B.MSISDN
+         GROUP BY A.MSISDN) C
+ WHERE C.PV > 100;
+
+--1、（2）统计20171001至20171007期间至少连续3天有访问的用户清单
+SELECT DISTINCT D.MSISDN
+  FROM (SELECT C.MSISDN, COUNT(*) DAYS --连续访问天数
+          FROM (SELECT B.MSISDN, (B.RECORD_DAY - ROWNUM) RN --连续访问时，日期-行号的差值相同
+                  FROM (SELECT DISTINCT A.MSISDN, A.RECORD_DAY --按用户、访问日期去重排序
+                          FROM PAGEVISIT A
+                         ORDER BY 1, 2) B) C
+         GROUP BY C.MSISDN, C.RN) D
+ WHERE D.DAYS >= 3;
+
+--2、统计每个部门中薪酬排名top3的用户列表   部门名称|员工姓名|薪酬
+SELECT D.DEPT_NAME, E.NAME, E.SALARY
+  FROM EMPLOYEE E,
+       (SELECT B.DEPARTMENTID, B.SALARY --取出每个部门前三名工资值
+          FROM (SELECT A.*,
+                       ROW_NUMBER() OVER(PARTITION BY A.DEPARTMENTID ORDER BY A.SALARY DESC) AS RN
+                  FROM (SELECT DISTINCT DEPARTMENTID, SALARY --按部门、工资去重
+                          FROM EMPLOYEE) A) B
+         WHERE B.RN <= 3) C,
+       DEPARTMENT D
+ WHERE E.DEPARTMENTID = C.DEPARTMENTID
+   AND E.SALARY = C.SALARY
+   AND E.DEPARTMENTID = D.DEPARTMENTID(+);
+
+--3、写一段 SQL 统计2013-10-01日至2013-10-03日期间，每天非禁止用户的取消率
+SELECT A.REQUEST_AT DAY,
+       ROUND(COUNT(CASE
+                     WHEN UPPER(A.STATUS) IN
+                          ('CANCELLED_BY_DRIVER', 'CANCELLED_BY_CLIENT') THEN
+                      A.STATUS
+                     ELSE
+                      NULL
+                   END) / COUNT(*),
+             2) CANCELLATION_RATE
+  FROM TRIPS A, (SELECT DISTINCT USER_ID FROM USERS WHERE BANNED = 'YES') B
+ WHERE A.CLIENT_ID = B.USER_ID
+   AND A.DRIVER_ID = B.USER_ID
+   AND A.REQUEST_AT BETWEEN '2013-10-01' AND '2013-10-03'
+ GROUP BY A.REQUEST_AT;
+
+
+
+
+
